@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ajedrez 3D (Reglas Oficiales) - Pixel Games</title>
+  <title>Ajedrez 3D - Resaltado Inteligente</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -74,7 +74,7 @@
 <body>
 
   <div class="hud">TURNO: <span id="turn-display">BLANCAS</span></div>
-  <div class="instructions">Click Izq + Arrastrar: Rotar cámara | Clic en pieza para ver movimientos legales</div>
+  <div class="instructions">Pulsa una ficha para ver sus casillas verdes i pulsa sobre lo verde para mover.</div>
 
   <div id="canvas-container"></div>
 
@@ -99,7 +99,14 @@
     const matBlackTile = new THREE.MeshStandardMaterial({ color: 0x3d2817, roughness: 0.3 });
     const matWhitePiece = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.2, metalness: 0.1 });
     const matBlackPiece = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.2 });
-    const matHighlight = new THREE.MeshBasicMaterial({ color: 0x00ff88, wireframe: true });
+    
+    // Material verde brillante para las casillas válidas
+    const matHighlight = new THREE.MeshBasicMaterial({ 
+      color: 0x00ff44, 
+      wireframe: true,
+      transparent: true,
+      opacity: 0.9 
+    });
 
     function init() {
       const container = document.getElementById('canvas-container');
@@ -157,7 +164,7 @@
           
           tile.position.set(c - 3.5, -0.1, r - 3.5);
           tile.receiveShadow = true;
-          tile.userData = { row: r, col: c };
+          tile.userData = { row: r, col: c, isTile: true };
 
           boardGroup.add(tile);
           board[r][c] = tile;
@@ -235,7 +242,7 @@
     function spawnPiece(type, color, row, col) {
       const mesh = createPieceMesh(type, color);
       mesh.position.set(col - 3.5, 0, row - 3.5);
-      mesh.userData = { type, color, row, col, moved: false };
+      mesh.userData = { type, color, row, col };
       scene.add(mesh);
       pieces.push(mesh);
     }
@@ -247,10 +254,11 @@
 
     function showValidMoves(moves) {
       clearHighlights();
-      const hGeo = new THREE.BoxGeometry(1.02, 0.22, 1.02);
+      const hGeo = new THREE.BoxGeometry(1.02, 0.25, 1.02);
       moves.forEach(m => {
         const mesh = new THREE.Mesh(hGeo, matHighlight);
-        mesh.position.set(m.col - 3.5, 0.02, m.row - 3.5);
+        mesh.position.set(m.col - 3.5, 0.05, m.row - 3.5);
+        mesh.userData = { row: m.row, col: m.col, isHighlight: true };
         scene.add(mesh);
         highlightMeshes.push(mesh);
       });
@@ -260,7 +268,6 @@
       return pieces.find(p => p.userData.row === r && p.userData.col === c);
     }
 
-    // CÁLCULO DE REGLAS OFICIALES DE AJEDREZ
     function calculateValidMoves(piece) {
       const moves = [];
       const { type, color, row, col } = piece.userData;
@@ -270,27 +277,24 @@
         const target = getPieceAt(r, c);
         if (!target) {
           moves.push({ row: r, col: c });
-          return true; // Casilla libre, se puede seguir linea
+          return true;
         }
         if (target.userData.color !== color) {
-          moves.push({ row: r, col: c }); // Come pieza enemiga
+          moves.push({ row: r, col: c });
         }
-        return false; // Bloqueado por pieza
+        return false;
       };
 
       if (type === 'pawn') {
         const dir = color === 'white' ? -1 : 1;
         const startRow = color === 'white' ? 6 : 1;
 
-        // Avanzar 1
         if (!getPieceAt(row + dir, col)) {
           moves.push({ row: row + dir, col });
-          // Avanzar 2 inicial
           if (row === startRow && !getPieceAt(row + 2 * dir, col)) {
             moves.push({ row: row + 2 * dir, col });
           }
         }
-        // Comer en diagonal
         [-1, 1].forEach(dc => {
           const target = getPieceAt(row + dir, col + dc);
           if (target && target.userData.color !== color) {
@@ -338,35 +342,41 @@
       if (intersects.length > 0) {
         let obj = intersects[0].object;
 
-        while (obj.parent && obj.parent !== scene && !obj.userData.type) {
+        // Subir en la jerarquía si pulsamos parte de una ficha o de los cuadros verdes
+        while (obj.parent && obj.parent !== scene && !obj.userData.type && !obj.userData.isTile && !obj.userData.isHighlight) {
           obj = obj.parent;
         }
 
-        // Seleccionar pieza de nuestro turno
-        if (obj.userData && obj.userData.color === turn) {
+        const data = obj.userData;
+
+        // 1. Si pulsamos sobre el cuadro verde O sobre una ficha enemiga válida, ¡MOVER!
+        if (selectedPiece) {
+          let clickedRow = data.row;
+          let clickedCol = data.col;
+
+          const isGreenMove = validMoves.some(m => m.row === clickedRow && m.col === clickedCol);
+
+          if (isGreenMove) {
+            movePiece(selectedPiece, clickedRow, clickedCol);
+            selectedPiece = null;
+            clearHighlights();
+            validMoves = [];
+            return;
+          }
+        }
+
+        // 2. Si pulsamos sobre una ficha de NUESTRO color: Seleccionar e iluminar casillas verdes
+        if (data && data.color === turn) {
           selectedPiece = obj;
           validMoves = calculateValidMoves(selectedPiece);
           showValidMoves(validMoves);
           return;
         }
 
-        // Mover a una casilla de las válidas
-        if (selectedPiece) {
-          let targetRow = -1, targetCol = -1;
-
-          if (obj.userData.row !== undefined) {
-            targetRow = obj.userData.row;
-            targetCol = obj.userData.col;
-          }
-
-          const isMoveValid = validMoves.some(m => m.row === targetRow && m.col === targetCol);
-
-          if (isMoveValid) {
-            movePiece(selectedPiece, targetRow, targetCol);
-            selectedPiece = null;
-            clearHighlights();
-          }
-        }
+        // 3. Si pulsas en cualquier otro sitio fuera de lo verde, cancelar selección
+        selectedPiece = null;
+        validMoves = [];
+        clearHighlights();
       }
     }
 
@@ -381,7 +391,6 @@
 
       piece.userData.row = targetRow;
       piece.userData.col = targetCol;
-      piece.userData.moved = true;
       piece.position.set(targetCol - 3.5, 0, targetRow - 3.5);
 
       turn = turn === 'white' ? 'black' : 'white';
@@ -405,6 +414,7 @@
       pieces.forEach(p => scene.remove(p));
       pieces = [];
       selectedPiece = null;
+      validMoves = [];
       clearHighlights();
       turn = 'white';
       document.getElementById('turn-display').textContent = 'BLANCAS';
