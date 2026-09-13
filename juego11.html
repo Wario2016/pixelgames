@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ajedrez 3D - Reglas Completas</title>
+  <title>Ajedrez 3D - Con Sonido y Tiempo</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -30,8 +29,11 @@
       font-weight: bold;
       z-index: 10;
       letter-spacing: 1px;
+      display: flex;
+      gap: 20px;
     }
     .hud span { color: #00e5ff; }
+    #timer-display { color: #ffda00; }
 
     .controls {
       position: absolute;
@@ -101,14 +103,17 @@
 </head>
 <body>
 
-  <div class="hud">TURNO: <span id="turn-display">BLANCAS</span></div>
+  <div class="hud">
+    <div>TURNO: <span id="turn-display">BLANCAS</span></div>
+    <div>TIEMPO: <span id="timer-display">30</span>s</div>
+  </div>
 
   <div id="canvas-container"></div>
 
   <!-- Pantalla de Victoria -->
   <div id="win-screen">
     <h2 id="win-text">¡VICTORIA!</h2>
-    <p style="font-size: 18px; margin-bottom: 20px;">Has eliminado al Rey enemigo.</p>
+    <p style="font-size: 18px; margin-bottom: 20px;">Fin de la partida.</p>
     <button class="btn" onclick="resetGame(); document.getElementById('win-screen').style.display='none';">JUGAR OTRA VEZ</button>
   </div>
 
@@ -138,6 +143,48 @@
     let turn = 'white';
     let pawnToPromote = null;
     
+    // Temporizador
+    let timeLeft = 30;
+    let timerInterval = null;
+
+    // Sistema de Audio
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (type === 'move') {
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+      } else if (type === 'capture') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+      } else if (type === 'win') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.1);
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+      }
+    }
+
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -183,11 +230,28 @@
 
       buildBoard();
       setupPieces();
+      startTimer();
 
       window.addEventListener('resize', onWindowResize);
       window.addEventListener('pointerdown', onPointerDown);
 
       animate();
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timeLeft = 30;
+      document.getElementById('timer-display').textContent = timeLeft;
+
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer-display').textContent = timeLeft;
+
+        if (timeLeft <= 0) {
+          // Se acaba el tiempo: pasa el turno
+          finishTurn();
+        }
+      }, 1000);
     }
 
     function buildBoard() {
@@ -394,7 +458,7 @@
 
         const data = obj.userData;
 
-        // 1. Mover a la casilla verde o comer
+        // 1. Mover pieza
         if (selectedPiece) {
           let clickedRow = data.row;
           let clickedCol = data.col;
@@ -410,7 +474,7 @@
           }
         }
 
-        // 2. Seleccionar ficha propia
+        // 2. Seleccionar pieza
         if (data && data.color === turn) {
           selectedPiece = obj;
           validMoves = calculateValidMoves(selectedPiece);
@@ -418,7 +482,7 @@
           return;
         }
 
-        // 3. Cancelar selección al pulsar fuera
+        // 3. Deseleccionar
         selectedPiece = null;
         validMoves = [];
         clearHighlights();
@@ -427,13 +491,15 @@
 
     function movePiece(piece, targetRow, targetCol) {
       const targetPieceIndex = pieces.findIndex(p => p.userData.row === targetRow && p.userData.col === targetCol);
-      
-      // Molar/Matar pieza enemiga
+      let isCapture = false;
+
       if (targetPieceIndex !== -1) {
         const targetPiece = pieces[targetPieceIndex];
-        
-        // REGLA: Si la pieza comida es el Rey -> ¡Ganas la partida!
+        isCapture = true;
+
         if (targetPiece.userData.type === 'king') {
+          playSound('win');
+          clearInterval(timerInterval);
           document.getElementById('win-text').textContent = turn === 'white' ? '¡GANAN LAS BLANCAS!' : '¡GANAN LAS NEGRAS!';
           document.getElementById('win-screen').style.display = 'flex';
         }
@@ -442,15 +508,18 @@
         pieces.splice(targetPieceIndex, 1);
       }
 
+      // Reproducir sonido correspondiente
+      if (!isCapture) playSound('move');
+      else playSound('capture');
+
       piece.userData.row = targetRow;
       piece.userData.col = targetCol;
       piece.position.set(targetCol - 3.5, 0, targetRow - 3.5);
 
-      // REGLA: Promoción de Peón si llega al otro lado
       if (piece.userData.type === 'pawn' && ((piece.userData.color === 'white' && targetRow === 0) || (piece.userData.color === 'black' && targetRow === 7))) {
         pawnToPromote = piece;
         document.getElementById('promo-screen').style.display = 'flex';
-        return; // Esperar selección de pieza antes de cambiar turno
+        return;
       }
 
       finishTurn();
@@ -461,12 +530,10 @@
 
       const { color, row, col } = pawnToPromote.userData;
 
-      // Eliminar el peón
       const index = pieces.indexOf(pawnToPromote);
       if (index !== -1) pieces.splice(index, 1);
       scene.remove(pawnToPromote);
 
-      // Crear la nueva pieza
       spawnPiece(newType, color, row, col);
 
       document.getElementById('promo-screen').style.display = 'none';
@@ -476,9 +543,15 @@
     }
 
     function finishTurn() {
+      selectedPiece = null;
+      validMoves = [];
+      clearHighlights();
+
       turn = turn === 'white' ? 'black' : 'white';
       document.getElementById('turn-display').textContent = turn === 'white' ? 'BLANCAS' : 'NEGRAS';
       document.getElementById('turn-display').style.color = turn === 'white' ? '#00e5ff' : '#ff4757';
+      
+      startTimer();
     }
 
     function onWindowResize() {
@@ -505,6 +578,7 @@
       document.getElementById('turn-display').textContent = 'BLANCAS';
       document.getElementById('turn-display').style.color = '#00e5ff';
       setupPieces();
+      startTimer();
     }
 
     init();
