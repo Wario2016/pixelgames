@@ -150,42 +150,41 @@
   <main class="grid" id="games"></main>
 
   <script>
-    const unlocked = [
-      const games = [
-  { id: 1, name: "money up", icon: "🪙", file: "juego1.html" },
-  { id: 2, name: "Spirit Wilds", icon: "🌲", file: "juego2.html" },
-  { id: 3, name: "Football Legends", icon: "⚽", file: "juego3.html" },
-  { id: 4, name: "Pixel AI", icon: "🤖", file: "juego4.html" },
-  { id: 5, name: "ultra Laberintos", icon: "🧩", file: "juego5.html" },
-  { id: 6, name: "Dreamer up", icon: "🌙", file: "juego6.html" },
-  { id: 7, name: "4 en raya", icon: "🔴", file: "juego7.html" },
-  { id: 8, name: "serpiente de colores", icon: "💎", file: "juego8.html" },
-  { id: 9, name: "money up 2", icon: "🍎", file: "juego9.html" },
-  { id: 10, name: "Pizarra magnética", icon: "⚽", file: "juego10.html" },
-  { id: 11, name: "Ajedrez en 3D", icon: "♟️", file: "juego11.html" },
-  { id: 12, name: "Galaxy Defender", icon: "👾", file: "juego12.html" },
-  { id: 13, name: "Pixel Chat", icon: "💬", file: "juego13.html" },
-  { id: 14, name: "Valorar Web", icon: "⭐", file: "juego14.html" }
-];
+    const games = [
+      { id: 1, name: "money up", icon: "🪙", file: "juego1.html" },
+      { id: 2, name: "Spirit Wilds", icon: "🌲", file: "juego2.html" },
+      { id: 3, name: "Football Legends", icon: "⚽", file: "juego3.html" },
+      { id: 4, name: "Pixel AI", icon: "🤖", file: "juego4.html" },
+      { id: 5, name: "ultra Laberintos", icon: "🧩", file: "juego5.html" },
+      { id: 6, name: "Dreamer up", icon: "🌙", file: "juego6.html" },
+      { id: 7, name: "4 en raya", icon: "🔴", file: "juego7.html" },
+      { id: 8, name: "serpiente de colores", icon: "💎", file: "juego8.html" },
+      { id: 9, name: "money up 2", icon: "🍎", file: "juego9.html" },
+      { id: 10, name: "Pizarra magnética", icon: "⚽", file: "juego10.html" },
+      { id: 11, name: "Ajedrez en 3D", icon: "♟️", file: "juego11.html" },
+      { id: 12, name: "Galaxy Defender", icon: "👾", file: "juego12.html" },
+      { id: 13, name: "Pixel Chat", icon: "💬", file: "juego13.html" },
+      { id: 14, name: "Valorar Web", icon: "⭐", file: "juego14.html" }
+    ];
 
     const container = document.getElementById("games");
 
-    for (let n = 1; n <= 200; n++) {
-      const data = unlocked.find(game => game.n === n);
+    for (let i = 1; i <= 200; i++) {
+      const gameData = games.find(g => g.id === i);
       const card = document.createElement("article");
 
-      card.className = "card " + (data ? "available" : "locked");
-
-      if (data) {
+      if (gameData) {
+        card.className = "card available";
         card.innerHTML = `
-          <div class="icon">${data.icon}</div>
-          <div class="name">${data.name}</div>
-          <a class="play" href="${data.url}">JUGAR</a>
+          <div class="icon">${gameData.icon}</div>
+          <div class="name">${gameData.name}</div>
+          <a class="play" href="${gameData.file}">JUGAR</a>
         `;
       } else {
+        card.className = "card locked";
         card.innerHTML = `
           <div class="lock">🔒</div>
-          <div class="name">Juego ${n}</div>
+          <div class="name">Juego ${i}</div>
           <div class="badge">PRÓXIMAMENTE</div>
         `;
       }
