@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Chat - Pixel Games</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #050814;
+      color: white;
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .chat-card {
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 450px;
+      height: 550px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.2);
+      overflow: hidden;
+    }
+
+    .chat-header {
+      background: #0f172a;
+      padding: 15px;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+      text-align: center;
+    }
+
+    .chat-header h1 {
+      font-size: 22px;
+      color: #00e5ff;
+      text-shadow: 0 0 10px #00e5ff;
+    }
+
+    .room-tag {
+      font-size: 12px;
+      color: #aaa;
+      margin-top: 4px;
+    }
+
+    .login-screen {
+      padding: 30px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      justify-content: center;
+      height: 100%;
+    }
+
+    input {
+      background: #080b12;
+      border: 1px solid rgba(0, 229, 255, 0.4);
+      color: #fff;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 16px;
+      outline: none;
+      text-align: center;
+    }
+
+    input:focus { border-color: #00e5ff; box-shadow: 0 0 8px #00e5ff; }
+
+    .btn {
+      padding: 12px;
+      background: linear-gradient(180deg, #00e5ff, #0088cc);
+      color: #000;
+      font-weight: bold;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: filter 0.2s, transform 0.1s;
+    }
+
+    .btn:hover { filter: brightness(1.2); transform: scale(1.02); }
+
+    .chat-body {
+      flex: 1;
+      padding: 15px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .msg-mine {
+      align-self: flex-end;
+      background: #0088cc;
+      color: #fff;
+      border-bottom-right-radius: 2px;
+    }
+
+    .msg-other {
+      align-self: flex-start;
+      background: #1e293b;
+      color: #e2e8f0;
+      border-bottom-left-radius: 2px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .msg-author {
+      font-size: 10px;
+      color: #00e5ff;
+      margin-bottom: 2px;
+      font-weight: bold;
+    }
+
+    .chat-footer {
+      padding: 10px;
+      background: #0f172a;
+      border-top: 1px solid rgba(0, 229, 255, 0.2);
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-footer input {
+      flex: 1;
+      text-align: left;
+    }
+
+    .btn-back {
+      margin-top: 15px;
+      background: linear-gradient(180deg, #ff4757, #c0392b);
+      color: white;
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+  </style>
+
+  <!-- Firebase JavaScript SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+
+  <div class="chat-card">
+    <div class="chat-header">
+      <h1>💬 PIXEL CHAT</h1>
+      <div class="room-tag" id="room-display">Ingresa tus datos para conectar</div>
+    </div>
+
+    <!-- Pantalla de Login -->
+    <div class="login-screen" id="login-view">
+      <input type="text" id="username" placeholder="Tu Nombre / Apodo" maxlength="12">
+      <input type="number" id="room-code" placeholder="Código de Sala (ej: 1325)">
+      <button class="btn" onclick="joinRoom()">ENTRAR AL CHAT</button>
+    </div>
+
+    <!-- Pantalla de Chat -->
+    <div class="chat-body" id="chat-body" style="display: none;"></div>
+
+    <div class="chat-footer" id="chat-footer" style="display: none;">
+      <input type="text" id="msg-input" placeholder="Escribe un mensaje..." onkeypress="handleKey(event)">
+      <button class="btn" onclick="sendMessage()">➡️</button>
+    </div>
+  </div>
+
+  <a href="juegos.html" class="btn-back">VOLVER AL MENÚ</a>
+
+  <script>
+    // Configuración de servidor público para pruebas
+    const firebaseConfig = {
+      databaseURL: "https://pixelgames-chat-default-rtdb.europe-west1.firebasedatabase.app"
+    };
+
+    let db;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+    } catch(e) {
+      console.log("Iniciando conexión...");
+    }
+
+    let myName = "";
+    let roomCode = "";
+
+    function joinRoom() {
+      const nameInp = document.getElementById('username').value.trim();
+      const codeInp = document.getElementById('room-code').value.trim();
+
+      if (!nameInp || !codeInp) {
+        alert("¡Por favor pon tu nombre y un código de sala!");
+        return;
+      }
+
+      myName = nameInp;
+      roomCode = codeInp;
+
+      document.getElementById('login-view').style.display = 'none';
+      document.getElementById('chat-body').style.display = 'flex';
+      document.getElementById('chat-footer').style.display = 'flex';
+      document.getElementById('room-display').textContent = `SALA: ${roomCode} | USUARIO: ${myName}`;
+
+      // Escuchar mensajes en tiempo real
+      db.ref('chats/' + roomCode).on('child_added', (snapshot) => {
+        const data = snapshot.val();
+        displayMessage(data.user, data.text);
+      });
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('msg-input');
+      const text = input.value.trim();
+
+      if (text !== "") {
+        db.ref('chats/' + roomCode).push({
+          user: myName,
+          text: text
+        });
+        input.value = "";
+      }
+    }
+
+    function handleKey(e) {
+      if (e.key === 'Enter') sendMessage();
+    }
+
+    function displayMessage(user, text) {
+      const body = document.getElementById('chat-body');
+      const msgDiv = document.createElement('div');
+      const isMine = user === myName;
+
+      msgDiv.className = `message ${isMine ? 'msg-mine' : 'msg-other'}`;
+
+      if (!isMine) {
+        msgDiv.innerHTML = `<div class="msg-author">${user}</div>${text}`;
+      } else {
+        msgDiv.textContent = text;
+      }
+
+      body.appendChild(msgDiv);
+      body.scrollTop = body.scrollHeight;
+    }
+  </script>
+</body>
+</html>
