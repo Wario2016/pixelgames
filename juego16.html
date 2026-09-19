@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Game - Secret</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at center, #111827 0%, #030712 100%);
+      color: white;
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    #start-screen {
+      text-align: center;
+      background: rgba(15, 23, 42, 0.9);
+      border: 2px solid #00e5ff;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 0 30px rgba(0, 229, 255, 0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    h1 {
+      font-size: 32px;
+      color: #00e5ff;
+      text-shadow: 0 0 10px #00e5ff;
+    }
+
+    .btn-play {
+      padding: 15px 40px;
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(180deg, #00e5ff, #0088cc);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 5px 0 #005580, 0 8px 20px rgba(0,229,255,0.3);
+      transition: transform 0.1s, filter 0.2s;
+    }
+
+    .btn-play:hover {
+      filter: brightness(1.2);
+      transform: scale(1.05);
+    }
+
+    .btn-play:active {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 #005580;
+    }
+
+    #game-container {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    canvas {
+      background: #090d16;
+      border: 2px solid #00e5ff;
+      border-radius: 12px;
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.2);
+    }
+
+    .ui {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .btn-back {
+      margin-top: 15px;
+      background: linear-gradient(180deg, #ff4757, #c0392b);
+      color: white;
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="start-screen">
+    <h1 id="title-text">???</h1>
+    <button class="btn-play" onclick="launchGame()">JUGAR</button>
+    <a href="juegos.html" class="btn-back">VOLVER AL MENÚ</a>
+  </div>
+
+  <div id="game-container">
+    <div class="ui">
+      <div id="score">Puntuación: 0</div>
+      <div id="status"></div>
+    </div>
+    <canvas id="canvas" width="600" height="400"></canvas>
+    <a href="juegos.html" class="btn-back">VOLVER AL MENÚ</a>
+  </div>
+
+  <script>
+    const startScreen = document.getElementById('start-screen');
+    const gameContainer = document.getElementById('game-container');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const statusEl = document.getElementById('status');
+
+    let active = false;
+    let score = 0;
+    let p = { x: 300, y: 350, r: 16, vx: 0, vy: 0 };
+    let targets = [];
+    let hazards = [];
+    let frame = 0;
+
+    function launchGame() {
+      startScreen.style.display = 'none';
+      gameContainer.style.display = 'flex';
+      active = true;
+      score = 0;
+      scoreEl.textContent = "Puntuación: 0";
+      statusEl.textContent = "";
+      p.x = 300; p.y = 350; p.vx = 0; p.vy = 0;
+      targets = [];
+      hazards = [];
+      frame = 0;
+      loop();
+    }
+
+    window.addEventListener('keydown', e => {
+      if (!active) return;
+      if (e.key === 'ArrowLeft' || e.key === 'a') p.vx = -5;
+      if (e.key === 'ArrowRight' || e.key === 'd') p.vx = 5;
+      if (e.key === 'ArrowUp' || e.key === 'w') p.vy = -5;
+      if (e.key === 'ArrowDown' || e.key === 's') p.vy = 5;
+    });
+
+    window.addEventListener('keyup', e => {
+      if (['ArrowLeft','a','ArrowRight','d'].includes(e.key)) p.vx = 0;
+      if (['ArrowUp','w','ArrowDown','s'].includes(e.key)) p.vy = 0;
+    });
+
+    canvas.addEventListener('mousemove', e => {
+      if (!active) return;
+      const rect = canvas.getBoundingClientRect();
+      p.x = e.clientX - rect.left;
+      p.y = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener('touchmove', e => {
+      if (!active) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      p.x = e.touches[0].clientX - rect.left;
+      p.y = e.touches[0].clientY - rect.top;
+    }, { passive: false });
+
+    function loop() {
+      if (!active) return;
+      frame++;
+
+      p.x += p.vx;
+      p.y += p.vy;
+      p.x = Math.max(p.r, Math.min(canvas.width - p.r, p.x));
+      p.y = Math.max(p.r, Math.min(canvas.height - p.r, p.y));
+
+      if (frame % 40 === 0) {
+        targets.push({
+          x: Math.random() * (canvas.width - 40) + 20,
+          y: Math.random() * (canvas.height - 40) + 20,
+          r: 12,
+          pulse: 0
+        });
+      }
+
+      if (frame % 30 === 0) {
+        let side = Math.floor(Math.random() * 4);
+        let hx, hy, vx, vy;
+        if (side === 0) { hx = Math.random() * canvas.width; hy = -10; vx = (Math.random() - 0.5) * 3; vy = Math.random() * 3 + 2; }
+        else if (side === 1) { hx = Math.random() * canvas.width; hy = canvas.height + 10; vx = (Math.random() - 0.5) * 3; vy = -(Math.random() * 3 + 2); }
+        else if (side === 2) { hx = -10; hy = Math.random() * canvas.height; vx = Math.random() * 3 + 2; vy = (Math.random() - 0.5) * 3; }
+        else { hx = canvas.width + 10; hy = Math.random() * canvas.height; vx = -(Math.random() * 3 + 2); vy = (Math.random() - 0.5) * 3; }
+
+        hazards.push({ x: hx, y: hy, vx: vx, vy: vy, r: 10 });
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#00e5ff';
+      ctx.fillStyle = '#00e5ff';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (let i = targets.length - 1; i >= 0; i--) {
+        let t = targets[i];
+        t.pulse += 0.05;
+        let pr = t.r + Math.sin(t.pulse) * 2;
+
+        ctx.shadowColor = '#ffda00';
+        ctx.fillStyle = '#ffda00';
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, pr, 0, Math.PI * 2);
+        ctx.fill();
+
+        let dist = Math.hypot(p.x - t.x, p.y - t.y);
+        if (dist < p.r + pr) {
+          targets.splice(i, 1);
+          score += 50;
+          scoreEl.textContent = `Puntuación: ${score}`;
+        }
+      }
+
+      for (let i = hazards.length - 1; i >= 0; i--) {
+        let h = hazards[i];
+        h.x += h.vx;
+        h.y += h.vy;
+
+        ctx.shadowColor = '#ff4757';
+        ctx.fillStyle = '#ff4757';
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        let dist = Math.hypot(p.x - h.x, p.y - h.y);
+        if (dist < p.r + h.r) {
+          active = false;
+          ctx.shadowBlur = 0;
+          statusEl.style.color = '#ff4757';
+          statusEl.textContent = "¡GAME OVER!";
+          setTimeout(() => {
+            startScreen.style.display = 'flex';
+            gameContainer.style.display = 'none';
+          }, 1800);
+          return;
+        }
+
+        if (h.x < -20 || h.x > canvas.width + 20 || h.y < -20 || h.y > canvas.height + 20) {
+          hazards.splice(i, 1);
+        }
+      }
+
+      ctx.shadowBlur = 0;
+      requestAnimationFrame(loop);
+    }
+  </script>
+</body>
+</html>
