@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Total Race - Juego 17</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0b0f19;
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            color: #00ffff;
+            text-shadow: 2px 2px #ff0055;
+            margin: 5px 0;
+            font-size: 1.8rem;
+        }
+        .info {
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+        canvas {
+            border: 4px solid #30363d;
+            border-radius: 8px;
+            background-color: #111;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+        }
+        .volver {
+            margin-top: 15px;
+            background-color: #1f6feb;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .volver:hover {
+            background-color: #388bfd;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>TOTAL RACE</h1>
+    <div class="info">Usa las flechas <b>IZQUIERDA</b> y <b>DERECHA</b> (o A / D) para conducir</div>
+
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+    <a href="juegos.html" class="volver">Volver al Menú</a>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let carX = canvas.width / 2 - 25;
+        let carY = canvas.height - 90;
+        let carWidth = 50;
+        let carHeight = 70;
+
+        let roadLineY = 0;
+        let obstacles = [];
+        let score = 0;
+        let gameOver = false;
+        let speed = 4;
+
+        let keys = {};
+
+        window.addEventListener("keydown", (e) => { keys[e.key] = true; });
+        window.addEventListener("keyup", (e) => { keys[e.key] = false; });
+
+        function spawnObstacle() {
+            const laneWidth = 120;
+            const minX = canvas.width / 2 - laneWidth - 60;
+            const maxX = canvas.width / 2 + laneWidth - 10;
+            const x = Math.random() * (maxX - minX) + minX;
+            obstacles.push({ x: x, y: -100, width: 45, height: 65 });
+        }
+
+        setInterval(() => {
+            if (!gameOver) {
+                spawnObstacle();
+                score += 10;
+                speed += 0.1; // Aumenta la velocidad progresivamente
+            }
+        }, 2000);
+
+        function update() {
+            if (gameOver) return;
+
+            // Movimiento del coche
+            if ((keys["ArrowLeft"] || keys["a"] || keys["A"]) && carX > 130) {
+                carX -= 6;
+            }
+            if ((keys["ArrowRight"] || keys["d"] || keys["D"]) && carX < canvas.width - 180) {
+                carX += 6;
+            }
+
+            // Movimiento de la carretera
+            roadLineY += speed;
+            if (roadLineY > 40) roadLineY = 0;
+
+            // Actualizar obstáculos
+            for (let i = 0; i < obstacles.length; i++) {
+                obstacles[i].y += speed;
+
+                // Colisión
+                if (
+                    carX < obstacles[i].x + obstacles[i].width &&
+                    carX + carWidth > obstacles[i].x &&
+                    carY < obstacles[i].y + obstacles[i].height &&
+                    carY + carHeight > obstacles[i].y
+                ) {
+                    gameOver = true;
+                }
+            }
+
+            // Eliminar obstáculos fuera de pantalla
+            obstacles = obstacles.filter(obs => obs.y < canvas.height + 100);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Césped / Fondo lateral
+            ctx.fillStyle = "#1e3d14";
+            ctx.fillRect(0, 0, 120, canvas.height);
+            ctx.fillRect(canvas.width - 120, 0, 120, canvas.height);
+
+            // Carretera
+            ctx.fillStyle = "#222222";
+            ctx.fillRect(120, 0, canvas.width - 240, canvas.height);
+
+            // Líneas de los bordes de la carretera
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(120, 0, 6, canvas.height);
+            ctx.fillRect(canvas.width - 126, 0, 6, canvas.height);
+
+            // Líneas centrales discontinuas
+            ctx.fillStyle = "#f1c40f";
+            for (let i = -40; i < canvas.height; i += 80) {
+                ctx.fillRect(canvas.width / 2 - 5, i + roadLineY, 10, 40);
+            }
+
+            // Dibujar obstáculos (coches enemigos)
+            for (let i = 0; i < obstacles.length; i++) {
+                let obs = obstacles[i];
+                ctx.fillStyle = "#e74c3c";
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                // Detalles del coche enemigo
+                ctx.fillStyle = "#c0392b";
+                ctx.fillRect(obs.x + 5, obs.y + 10, obs.width - 10, 15);
+                ctx.fillStyle = "#fff";
+                ctx.fillRect(obs.x + 8, obs.y + 5, 8, 4);
+                ctx.fillRect(obs.x + obs.width - 16, obs.y + 5, 8, 4);
+            }
+
+            // Dibujar nuestro coche (Total Race)
+            ctx.fillStyle = "#00ffff";
+            ctx.fillRect(carX, carY, carWidth, carHeight);
+            // Cabina y detalles
+            ctx.fillStyle = "#005555";
+            ctx.fillRect(carX + 8, carY + 20, carWidth - 16, 25);
+            // Ruedas
+            ctx.fillStyle = "#000";
+            ctx.fillRect(carX - 6, carY + 12, 6, 16);
+            ctx.fillRect(carX + carWidth, carY + 12, 6, 16);
+            ctx.fillRect(carX - 6, carY + carHeight - 28, 6, 16);
+            ctx.fillRect(carX + carWidth, carY + carHeight - 28, 6, 16);
+
+            // Puntuación
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "18px 'Courier New'";
+            ctx.fillText("Puntuación: " + score, 20, 30);
+
+            // Pantalla de Game Over
+            if (gameOver) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#ff0055";
+                ctx.font = "bold 32px 'Courier New'";
+                ctx.textAlign = "center";
+                ctx.fillText("¡ACCIDENTE!", canvas.width / 2, canvas.height / 2 - 20);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "18px 'Courier New'";
+                ctx.fillText("Puntuación final: " + score, canvas.width / 2, canvas.height / 2 + 20);
+                ctx.fillText("Pulsa F5 o recarga para reintentar", canvas.width / 2, canvas.height / 2 + 60);
+                ctx.textAlign = "left";
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
